@@ -1,0 +1,7 @@
+# Archivos locales de inicio
+iniciar_dashboard.bat
+
+# Otros archivos locales
+.DS_Store
+Thumbs.db
+*.log
