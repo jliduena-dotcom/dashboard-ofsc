@@ -1,0 +1,42 @@
+{
+  "_info": "Edita este archivo para ajustar los umbrales sin tocar el código",
+
+  "retraso_franja": {
+    "_info": "Técnico con actividades activas después de la hora_limite de su franja",
+    "AM": { "hora_limite": "13:00" },
+    "PM": { "hora_limite": "18:00" },
+    "estados_activos": ["Pendiente", "Iniciado", "en ruta"]
+  },
+
+  "sobrecarga": {
+    "arreglos_postventa": {
+      "_info": "Arreglos y Postventa: alerta si el técnico tiene MÁS de max_actividades activas",
+      "grupos": ["Arreglos", "Postventa"],
+      "max_actividades": 6
+    },
+    "instalaciones_traslados": {
+      "_info": "Instalaciones, Traslados y Brownfield: alerta si supera max_actividades. Ajusta 'grupos' si Brownfield aparece con otro nombre en tu OFSC",
+      "grupos": ["Instalaciones", "Traslados", "Otros"],
+      "max_actividades": 4
+    }
+  },
+
+  "avance_dia": {
+    "_info": "Alerta si el % de actividades Completadas está por debajo del umbral a la hora_evaluacion",
+    "umbral_pct": 80,
+    "hora_evaluacion": "15:00"
+  },
+
+  "whatsapp": {
+    "hora_inicio": "08:00",
+    "hora_fin": "18:00",
+    "_info_secrets": "Preferiblemente usa GitHub Secrets: WA_NUMEROS=57300...,57311... y WA_APIKEYS=key1,key2",
+    "destinatarios": [
+      {
+        "nombre": "Supervisor 1",
+        "numero": "573001234567",
+        "apikey": "REEMPLAZA_CON_TU_APIKEY_CALLMEBOT"
+      }
+    ]
+  }
+}

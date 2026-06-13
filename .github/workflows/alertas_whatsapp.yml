@@ -1,0 +1,32 @@
+name: Alertas WhatsApp OFSC
+
+on:
+  schedule:
+    # Cada hora de 08:00 a 18:00 hora Colombia (UTC-5) — lunes a viernes
+    # 08 Col = 13 UTC | 18 Col = 23 UTC
+    - cron: '0 13,14,15,16,17,18,19,20,21,22,23 * * 1-5'
+  workflow_dispatch:  # Permite ejecución manual desde GitHub
+
+jobs:
+  alertas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: pip install requests
+
+      - name: Ejecutar agente de alertas
+        run: python scripts/agente_alertas.py
+        env:
+          # Configura estos secretos en GitHub → Settings → Secrets and variables → Actions
+          # WA_NUMEROS: números separados por coma, con código de país (ej: 573001234567,573119876543)
+          # WA_APIKEYS: apikeys de CallMeBot en el mismo orden (ej: 123456,789012)
+          WA_NUMEROS: ${{ secrets.WA_NUMEROS }}
+          WA_APIKEYS: ${{ secrets.WA_APIKEYS }}
