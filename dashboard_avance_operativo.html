@@ -955,6 +955,15 @@ const ESTADO_COLORS = [
   '#4B5563',  // 5 Suspendido
   '#0891B2'   // 6 En ruta
 ];
+const EST = {
+  cancel: RAW.estados.indexOf('Cancelado'),
+  comp: RAW.estados.indexOf('Completado'),
+  noComp: RAW.estados.indexOf('No completado'),
+  inic: RAW.estados.indexOf('Iniciado'),
+  pend: RAW.estados.indexOf('Pendiente'),
+  enRuta: RAW.estados.indexOf('en ruta'),
+  susp: RAW.estados.indexOf('Suspendido')
+};
 // Row format: [ciudad(0),comp(1),franja(2),grupo(3),estado(4),red(5),razon(6),
 //              gestionado(7),fecha_idx(8),canal_idx(9),nap_rn(10),subtipo_idx(11),tec_idx(12)]
 
@@ -1173,7 +1182,7 @@ function getFiltered() {
    ────────────────────────────────────────────────────────────────── */
 function pct(g, t)    { return t ? Math.round(g/t*100) : 0; }
 function cls(p)       { return p>=70 ? 'pct-ok' : p>=40 ? 'pct-mid' : 'pct-low'; }
-function efect(rows)  { const c=rows.filter(r=>r[4]===1).length, nc=rows.filter(r=>r[4]===3).length, d=c+nc; return d?Math.round(c/d*100):0; }
+function efect(rows)  { const c=rows.filter(r=>r[4]===EST.comp).length, nc=rows.filter(r=>r[4]===EST.noComp).length, d=c+nc; return d?Math.round(c/d*100):0; }
 function proyect(rows){ const e=efect(rows)/100, tot=rows.length; return Math.round(e*tot); }
 
 /* Registro de instancias Chart.js para destruir antes de recrear */
@@ -1392,7 +1401,7 @@ function doRazones(data) {
 }
 
 function doRedNeutra(data) {
-  const instGi=RAW.grupos.indexOf('Instalaciones'), PEND=4;
+  const instGi=RAW.grupos.indexOf('Instalaciones'), PEND=EST.pend;
   const rnAll=data.filter(r=>r.length>10&&r[10]===1);
   const rnPend=rnAll.filter(r=>r[4]===PEND);
 
@@ -1412,7 +1421,7 @@ function doRedNeutra(data) {
   const rnInst=instGi>=0?rnAll.filter(r=>r[3]===instGi):[];
   const kpis2=document.getElementById('rn-inst-kpis');
   if(kpis2){
-    const iComp=rnInst.filter(r=>r[4]===1).length, iPend=rnInst.filter(r=>r[4]===PEND).length;
+    const iComp=rnInst.filter(r=>r[4]===EST.comp).length, iPend=rnInst.filter(r=>r[4]===PEND).length;
     kpis2.innerHTML=mkMini('Total Inst.',rnInst.length,'#0891B2')+mkMini('Completadas',iComp,'#059669')+mkMini('Pendientes',iPend,'#DC2626');
   }
   const estData=[],estLbls=[],estColors=['#F59E0B','#059669','#2563EB','#DC2626','#9098B1','#4B5563','#0891B2'];
@@ -1475,8 +1484,8 @@ function doTabla(data) {
 function renderProyeccion(data) { doProyGrupos(data); doProyAliados(data); doProyCiudad(data); }
 
 function buildProjCard(name,rows,borderColor) {
-  const tot=rows.length, comp=rows.filter(r=>r[4]===1).length;
-  const noComp=rows.filter(r=>r[4]===3).length, denom=comp+noComp;
+  const tot=rows.length, comp=rows.filter(r=>r[4]===EST.comp).length;
+  const noComp=rows.filter(r=>r[4]===EST.noComp).length, denom=comp+noComp;
   const ef=denom?Math.round(comp/denom*100):0, proy=Math.round((ef/100)*tot);
   return '<div class="proj-card" style="border-left-color:'+borderColor+'">'+
     '<div class="proj-card__name">'+name+'</div>'+
@@ -1511,9 +1520,13 @@ function doProyCiudad(data) {
     const k=r[0]+'||'+r[1];
     if(!rows[k]) rows[k]={ci:r[0],cp:r[1],tot:0,comp:0,noComp:0,inic:0,pend:0,enRuta:0,cancel:0,instTot:0,instComp:0,instNoComp:0};
     rows[k].tot++;
-    if(r[4]===1)rows[k].comp++;else if(r[4]===3)rows[k].noComp++;else if(r[4]===2)rows[k].inic++;
-    else if(r[4]===4)rows[k].pend++;else if(r[4]===6)rows[k].enRuta++;else if(r[4]===0)rows[k].cancel++;
-    if(instGi>=0&&r[3]===instGi){rows[k].instTot++;if(r[4]===1)rows[k].instComp++;else if(r[4]===3)rows[k].instNoComp++;}
+    if(r[4]===EST.comp) rows[k].comp++;
+    else if(r[4]===EST.noComp) rows[k].noComp++;
+    else if(r[4]===EST.inic) rows[k].inic++;
+    else if(r[4]===EST.pend) rows[k].pend++;
+    else if(r[4]===EST.enRuta) rows[k].enRuta++;
+    else if(r[4]===EST.cancel) rows[k].cancel++;
+    if(instGi>=0&&r[3]===instGi){rows[k].instTot++;if(r[4]===EST.comp) rows[k].instComp++;else if(r[4]===EST.noComp) rows[k].instNoComp++;}
   });
   const sorted=Object.values(rows).sort((a,b)=>(RAW.cities[a.ci]||'').localeCompare(RAW.cities[b.ci]||''));
   const tbody=document.getElementById('tbody-proy');
@@ -1555,8 +1568,8 @@ function doProyCiudad(data) {
 function doEfectRN(data) {
   const rnSi=data.filter(r=>r.length>10&&r[10]===1), rnNo=data.filter(r=>r.length>10&&r[10]===0);
   const efRN=efect(rnSi), efNoRN=efect(rnNo);
-  const compRN=rnSi.filter(r=>r[4]===1).length, ncRN=rnSi.filter(r=>r[4]===3).length;
-  const compNoRN=rnNo.filter(r=>r[4]===1).length, ncNoRN=rnNo.filter(r=>r[4]===3).length;
+  const compRN=rnSi.filter(r=>r[4]===EST.comp).length, ncRN=rnSi.filter(r=>r[4]===EST.noComp).length;
+  const compNoRN=rnNo.filter(r=>r[4]===EST.comp).length, ncNoRN=rnNo.filter(r=>r[4]===EST.noComp).length;
   kill('rnCompar');
   const ctx=document.getElementById('cRNcompar');
   if(ctx) {
@@ -1590,11 +1603,11 @@ function renderResumen(data) {
   const am=data.filter(r=>r[2]===0), pm=data.filter(r=>r[2]===1);
   const amG=am.filter(r=>r[7]).length, pmG=pm.filter(r=>r[7]).length;
   const totT=data.length, totG=amG+pmG;
-  const comp=data.filter(r=>r[4]===1).length, noComp=data.filter(r=>r[4]===3).length;
+  const comp=data.filter(r=>r[4]===EST.comp).length, noComp=data.filter(r=>r[4]===EST.noComp).length;
   const ef=efect(data), pAmP=pct(amG,am.length), pPmP=pct(pmG,pm.length);
   const instGi=RAW.grupos.indexOf('Instalaciones');
   const instRows=instGi>=0?data.filter(r=>r[3]===instGi):[];
-  const instComp=instRows.filter(r=>r[4]===1).length, instNoComp=instRows.filter(r=>r[4]===3).length;
+  const instComp=instRows.filter(r=>r[4]===EST.comp).length, instNoComp=instRows.filter(r=>r[4]===EST.noComp).length;
   const instDenom=instComp+instNoComp, instEf=instDenom?instComp/instDenom:0;
   const instProy=Math.round(instEf*instRows.length), proyServ=Math.round(instProy*1.63);
   const sv=(id,v,s)=>{ const el=document.getElementById(id);if(el)el.textContent=v;const sel=document.getElementById(id+'-s');if(sel)sel.textContent=s||''; };
@@ -1607,7 +1620,7 @@ function renderResumen(data) {
   sv('ex-global',pct(totG,totT)+'%',totG+' / '+totT+' gestionadas');
   sv('ex-proy-serv',proyServ.toLocaleString(),'Inst. proyect.: '+instProy+' órd.');
   const rnInstTotal=instGi>=0?data.filter(r=>r.length>10&&r[3]===instGi&&r[10]===1).length:0;
-  const rnInstPend =instGi>=0?data.filter(r=>r.length>10&&r[3]===instGi&&r[10]===1&&r[4]===4).length:0;
+  const rnInstPend =instGi>=0?data.filter(r=>r.length>10&&r[3]===instGi&&r[10]===1&&r[4]===EST.pend).length:0;
   sv('ex-rn-inst',rnInstTotal,rnInstPend+' pendientes');
   doEfectRN(data);
 
@@ -1617,7 +1630,7 @@ function renderResumen(data) {
     RAW.canales.forEach((canal,ci)=>{
       const rows=data.filter(r=>r[9]===ci); if(!rows.length) return;
       const instR=rows.filter(r=>instGi>=0&&r[3]===instGi);
-      const iComp=instR.filter(r=>r[4]===1).length, iNoComp=instR.filter(r=>r[4]===3).length;
+      const iComp=instR.filter(r=>r[4]===EST.comp).length, iNoComp=instR.filter(r=>r[4]===EST.noComp).length;
       const iDenom=iComp+iNoComp, iEf=iDenom?Math.round(iComp/iDenom*100):0;
       const iTotal=instR.length, iProy=Math.round((iEf/100)*iTotal), iProyServ=Math.round(iProy*1.63);
       const col=canalColors[ci%canalColors.length];
@@ -1666,7 +1679,6 @@ function filterTecTable() {
 function renderTecnicos(data) {
   _tecData=data;
   const GI={inst:RAW.grupos.indexOf('Instalaciones'),arr:RAW.grupos.indexOf('Arreglos'),post:RAW.grupos.indexOf('Postventa'),tras:RAW.grupos.indexOf('Traslados'),des:RAW.grupos.indexOf('Desconexiones'),otro:RAW.grupos.indexOf('Otros')};
-  const EST={comp:1,noComp:3,inic:2,pend:4,enRuta:6,cancel:0,susp:5};
   const tecMap={};
   data.forEach(r=>{
     const ti=r[12]; if(ti<0) return;
