@@ -1,7 +1,18 @@
+# Script de generación (local, no versionado)
+*.py
+__pycache__/
+*.pyc
+*.pyo
+
+# Datos fuente locales
+*.xlsx
+*.xlsb
+*.csv
+
 # Archivos locales de inicio
 iniciar_dashboard.bat
 
-# Otros archivos locales
+# Otros archivos locales del sistema
 .DS_Store
 Thumbs.db
 *.log
