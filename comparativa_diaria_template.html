@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Comparativa Diaria OFSC — curvas de avance horario por día">
+  <title>Comparativa Diaria — OFSC</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+
+<style>
+/* ══ DESIGN TOKENS (mismos que el dashboard principal) ══════════ */
+:root {
+  --color-bg:        #EEF1F8;
+  --color-surface:   #FFF;
+  --color-surface2:  #F4F6FB;
+  --color-border:    #DDE2EF;
+  --color-text:      #1A1D2E;
+  --color-text2:     #5A607A;
+  --color-text3:     #9098B1;
+  --color-am:        #2563EB;
+  --color-pm:        #F59E0B;
+  --color-ok:        #059669;
+  --color-err:       #DC2626;
+  --color-warn:      #D97706;
+  --color-teal:      #0891B2;
+  --color-purple:    #7C3AED;
+  --radius:          12px;
+  --shadow:          0 1px 3px rgba(0,0,0,.07), 0 4px 16px rgba(0,0,0,.05);
+  --header-h:        53px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+/* ══ HEADER ══════════════════════════════════════════════════════ */
+.site-header {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: 12px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 300;
+  box-shadow: 0 2px 6px rgba(0,0,0,.06);
+  height: var(--header-h);
+}
+.site-header__brand h1 { font-size: 15px; font-weight: 600; letter-spacing: -.3px; }
+.site-header__brand p  { font-size: 11px; color: var(--color-text3); margin-top: 1px; }
+.site-header__actions  { display: flex; align-items: center; gap: 10px; }
+
+/* Botón de retorno al dashboard */
+.btn-back {
+  display: flex; align-items: center; gap: 6px;
+  background: transparent;
+  color: var(--color-am);
+  border: 1px solid #93C5FD;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 11px; font-family: 'DM Sans', sans-serif;
+  cursor: pointer; text-decoration: none;
+  transition: background .15s;
+}
+.btn-back:hover { background: #EFF6FF; }
+
+/* ══ CONTROLES SUPERIORES ════════════════════════════════════════
+   Sticky bajo el header. Permite seleccionar los días a comparar. */
+.controls-bar {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: 12px 28px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  position: sticky; top: var(--header-h); z-index: 270;
+}
+.controls-bar__label {
+  font-size: 10px; font-weight: 600; letter-spacing: .5px;
+  text-transform: uppercase; color: var(--color-text3);
+}
+
+/* Pills de días para activar/desactivar */
+.day-pills { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.day-pill {
+  padding: 5px 13px; border-radius: 20px;
+  border: 1.5px solid var(--color-border);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  background: var(--color-surface); color: var(--color-text2);
+  transition: all .15s; user-select: none;
+  font-family: 'DM Mono', monospace;
+}
+.day-pill:hover { border-color: #9098B1; }
+.day-pill.is-active { color: #fff; border-color: transparent; }
+
+.controls-bar__actions { display: flex; gap: 6px; margin-left: auto; }
+.controls-bar__actions button {
+  padding: 4px 10px; font-size: 11px;
+  border: 1px solid var(--color-border); border-radius: 6px;
+  background: var(--color-surface2); color: var(--color-text2);
+  cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .12s;
+}
+.controls-bar__actions button:hover { background: var(--color-surface); border-color: #9098B1; }
+
+/* ══ SEMÁFORO BAR ════════════════════════════════════════════════ */
+.semaforo-bar {
+  display: flex; align-items: center; gap: 8px; padding: 10px 28px;
+  background: var(--color-surface); border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+.semaforo-bar__item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--color-text2); }
+.semaforo-bar__dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.semaforo-bar__dot--ok     { background: #059669; }
+.semaforo-bar__dot--warn   { background: #D97706; }
+.semaforo-bar__dot--late   { background: #DC2626; }
+.semaforo-bar__dot--atip   { background: #9098B1; }
+.semaforo-bar__sep { width: 1px; height: 16px; background: var(--color-border); margin: 0 4px; }
+.semaforo-bar__value { font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 600; }
+
+/* Badge de estado semáforo */
+.status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 20px; font-size: 10px; font-weight: 600; font-family: 'DM Mono', monospace; }
+.status-badge--ok    { background: #D1FAE5; color: #065F46; }
+.status-badge--warn  { background: #FEF3C7; color: #92400E; }
+.status-badge--late  { background: #FEE2E2; color: #991B1B; }
+.status-badge--atip  { background: #F3F4F6; color: #374151; }
+.status-badge--parc  { background: #FEF9C3; color: #713F12; }
+
+/* ══ MAIN ════════════════════════════════════════════════════════ */
+.panel-body { padding: 18px 28px; }
+
+/* ── KPI Cards de comparativa ───────────────────────────────── */
+.kpi-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 11px; margin-bottom: 14px;
+}
+.kpi-card {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius); padding: 13px 15px; box-shadow: var(--shadow);
+  border-top: 3px solid transparent;
+}
+.kpi-card__label { font-size: 10px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--color-text3); margin-bottom: 6px; }
+.kpi-card__value { font-size: 22px; font-weight: 600; letter-spacing: -.8px; line-height: 1.1; }
+.kpi-card__sub   { font-size: 10px; color: var(--color-text3); margin-top: 4px; font-family: 'DM Mono', monospace; }
+
+/* ── Cards de gráficos ──────────────────────────────────────── */
+.content-card {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow);
+}
+.content-card--full { grid-column: 1 / -1; }
+.content-card__title { font-size: 13px; font-weight: 600; color: var(--color-text); margin-bottom: 2px; }
+.content-card__subtitle { font-size: 11px; color: var(--color-text3); margin-bottom: 12px; }
+
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; margin-bottom: 13px; }
+
+/* Leyenda del benchmark */
+.bench-legend { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--color-text2); margin-top: 6px; }
+.bench-legend__line { width: 22px; height: 2px; border-top: 2px dashed #059669; flex-shrink: 0; }
+
+/* ── Tabla de diagnóstico ────────────────────────────────────── */
+.table-wrap { overflow-x: auto; }
+.diag-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.diag-table thead th {
+  background: var(--color-surface2); padding: 7px 10px; text-align: center;
+  font-weight: 600; color: var(--color-text2); border-bottom: 1px solid var(--color-border);
+  white-space: nowrap; font-size: 10px; letter-spacing: .3px; text-transform: uppercase;
+}
+.diag-table thead th:first-child { text-align: left; }
+.diag-table tbody td { padding: 6px 10px; border-bottom: 1px solid var(--color-border); text-align: center; white-space: nowrap; }
+.diag-table tbody td:first-child { text-align: left; font-weight: 500; }
+.diag-table tbody tr:hover td { background: var(--color-surface2); }
+.diag-table tbody tr.is-dimmed td { opacity: .3; }
+
+/* ── Indicadores de fase de la jornada ─────────────────────── */
+.phase-indicators {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 8px; margin-top: 12px;
+}
+.phase-indicator { padding: 6px 10px; background: var(--color-surface2); border-radius: 0 6px 6px 0; }
+.phase-indicator__label { font-size: 10px; color: var(--color-text3); text-transform: uppercase; letter-spacing: .4px; }
+.phase-indicator__desc  { font-size: 12px; color: var(--color-text2); margin-top: 2px; }
+
+/* ── Empty state ─────────────────────────────────────────────── */
+.empty { text-align: center; padding: 28px; color: var(--color-text3); font-size: 13px; }
+
+/* ══ RESPONSIVE ══════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .kpi-grid  { grid-template-columns: repeat(2, 1fr); }
+  .chart-grid { grid-template-columns: 1fr; }
+  .panel-body { padding: 14px 16px; }
+  .controls-bar, .semaforo-bar { padding: 10px 16px; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- ══ HEADER ════════════════════════════════════════════════════
+     Incluye botón de retorno al dashboard principal. ══════════ -->
+<header class="site-header" role="banner">
+  <div class="site-header__brand">
+    <h1>&#128337; Comparativa Diaria</h1>
+    <p>Curvas de avance horario OFSC Field Service</p>
+  </div>
+  <div class="site-header__actions">
+    <!-- Enlace de retorno: vuelve al dashboard en la misma ventana -->
+    <a class="btn-back" href="dashboard_avance_operativo.html">
+      &#8592; Volver al Dashboard
+    </a>
+  </div>
+</header>
+
+<!-- ══ CONTROLES: SELECTOR DE DÍAS ══════════════════════════════
+     Las pills se construyen dinámicamente por cdBuildPills().
+     Máximo 7 días activos simultáneos (legibilidad de los gráficos). -->
+<div class="controls-bar" id="cd-controls" role="toolbar" aria-label="Selector de días">
+  <span class="controls-bar__label">Semana (máx 7 días)</span>
+  <div class="day-pills" id="cd-pills" role="group" aria-label="Días disponibles"></div>
+  <div class="controls-bar__actions">
+    <button onclick="cdToggleAll(true)" aria-label="Activar todos los días">Todos</button>
+    <button onclick="cdToggleAll(false)" aria-label="Desactivar todos los días">Ninguno</button>
+  </div>
+</div>
+
+<!-- ══ BARRA DE SEMÁFORO ═════════════════════════════════════════
+     Muestra la leyenda de estados y el indicador del día activo. -->
+<div class="semaforo-bar" id="cd-semaforo" role="status" aria-label="Estado operativo">
+  <span class="controls-bar__label" style="margin-right:4px">Estado @13h:</span>
+  <div class="semaforo-bar__item">
+    <div class="semaforo-bar__dot semaforo-bar__dot--ok"></div>
+    <span>Estabilizado &#8805;42%</span>
+  </div>
+  <div class="semaforo-bar__sep"></div>
+  <div class="semaforo-bar__item">
+    <div class="semaforo-bar__dot semaforo-bar__dot--warn"></div>
+    <span>En riesgo 32&#8211;41%</span>
+  </div>
+  <div class="semaforo-bar__sep"></div>
+  <div class="semaforo-bar__item">
+    <div class="semaforo-bar__dot semaforo-bar__dot--late"></div>
+    <span>Retrasado &lt;32%</span>
+  </div>
+  <div class="semaforo-bar__sep"></div>
+  <div class="semaforo-bar__item">
+    <div class="semaforo-bar__dot semaforo-bar__dot--atip"></div>
+    <span>At&#237;pico / Parcial</span>
+  </div>
+  <div class="semaforo-bar__sep" style="margin-left:8px"></div>
+  <span class="controls-bar__label" style="margin-left:4px">&#218;ltimo activo @13h:</span>
+  <span class="semaforo-bar__value" id="cd-sema-hoy" style="margin-left:4px">&#8212;</span>
+  <span id="cd-sema-badge" style="margin-left:6px"></span>
+</div>
+
+<!-- ══ CONTENIDO PRINCIPAL ════════════════════════════════════════ -->
+<main role="main">
+<div class="panel-body">
+
+  <!-- KPIs de promedios por hora clave -->
+  <div class="kpi-grid" aria-label="Promedios por hora clave">
+    <article class="kpi-card" style="border-top-color:#2563EB">
+      <div class="kpi-card__label">Promedio @9h</div>
+      <div class="kpi-card__value" id="cdkv-9" style="color:#2563EB">&#8212;</div>
+      <div class="kpi-card__sub" id="cdks-9">media d&#237;as seleccionados</div>
+    </article>
+    <article class="kpi-card" style="border-top-color:#7C3AED">
+      <div class="kpi-card__label">Promedio @12h</div>
+      <div class="kpi-card__value" id="cdkv-12" style="color:#7C3AED">&#8212;</div>
+      <div class="kpi-card__sub" id="cdks-12">media d&#237;as seleccionados</div>
+    </article>
+    <article class="kpi-card" style="border-top-color:#059669">
+      <div class="kpi-card__label">Promedio @14h</div>
+      <div class="kpi-card__value" id="cdkv-14" style="color:#059669">&#8212;</div>
+      <div class="kpi-card__sub" id="cdks-14">media d&#237;as seleccionados</div>
+    </article>
+    <article class="kpi-card" style="border-top-color:#F59E0B">
+      <div class="kpi-card__label">Promedio @17h</div>
+      <div class="kpi-card__value" id="cdkv-17" style="color:#F59E0B">&#8212;</div>
+      <div class="kpi-card__sub" id="cdks-17">media d&#237;as seleccionados</div>
+    </article>
+  </div>
+
+  <!-- Gráfico de avance acumulado (curva principal) -->
+  <div class="content-card content-card--full" style="margin-bottom:13px">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <div>
+        <div class="content-card__title">Curva de avance acumulado por hora</div>
+        <div class="content-card__subtitle">% &#243;rdenes gestionadas hasta cada hora · 7h &#8594; 18h · zona verde = &#177;5% del benchmark</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <div class="bench-legend">
+          <div class="bench-legend__line"></div>
+          <span>Benchmark (promedio hist&#243;rico d&#237;as completos)</span>
+        </div>
+        <div id="cd-leg-acum" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end"></div>
+      </div>
+    </div>
+    <div style="position:relative;height:270px">
+      <canvas id="cd-chart-acum" role="img" aria-label="Curva de avance acumulado por hora"></canvas>
+    </div>
+    <!-- Indicadores de fase de la jornada -->
+    <div class="phase-indicators">
+      <div class="phase-indicator" style="border-left:3px solid #F59E0B">
+        <div class="phase-indicator__label">Arranque AM · 7&#8211;9h</div>
+        <div class="phase-indicator__desc">Velocidad de inicio &mdash; t&#233;cnicos en ruta</div>
+      </div>
+      <div class="phase-indicator" style="border-left:3px solid #2563EB">
+        <div class="phase-indicator__label">Crucero AM · 9&#8211;13h</div>
+        <div class="phase-indicator__desc">Velocidad sostenida · umbral @13h &#8805;42%</div>
+      </div>
+      <div class="phase-indicator" style="border-left:3px solid #059669">
+        <div class="phase-indicator__label">Cierre PM · 13&#8211;18h</div>
+        <div class="phase-indicator__desc">Recuperaci&#243;n y cierre · meta &#8805;88% @18h</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grid: Ritmo horario + Balance AM/PM -->
+  <div class="chart-grid" style="margin-bottom:13px">
+    <div class="content-card">
+      <div class="content-card__title">Ritmo por hora &mdash; dispersi&#243;n</div>
+      <div class="content-card__subtitle">% gestionado en cada hora exacta · puntos = d&#237;as individuales · banda = rango entre d&#237;as</div>
+      <div id="cd-leg-ritmo" style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px"></div>
+      <div style="position:relative;height:240px">
+        <canvas id="cd-chart-ritmo" role="img" aria-label="Ritmo horario con dispersión por día"></canvas>
+      </div>
+    </div>
+    <div class="content-card">
+      <div class="content-card__title">Balance AM vs PM por d&#237;a</div>
+      <div class="content-card__subtitle">% total del d&#237;a gestionado en franja ma&#241;ana vs tarde</div>
+      <div style="position:relative;height:240px">
+        <canvas id="cd-chart-balance" role="img" aria-label="Balance AM vs PM por día"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla de diagnóstico por día -->
+  <div class="content-card content-card--full" style="margin-bottom:0">
+    <div class="content-card__title" style="margin-bottom:6px">Diagn&#243;stico por d&#237;a</div>
+    <div class="content-card__subtitle">Avance en horas clave · efectividad · &#243;rdenes completadas · sem&#225;foro operativo &mdash; d&#237;as atenuados no est&#225;n seleccionados</div>
+    <div class="table-wrap">
+      <table class="diag-table">
+        <thead>
+          <tr>
+            <th style="text-align:left;min-width:110px">D&#237;a</th>
+            <th>Total</th>
+            <th>&#211;rdenes OK</th>
+            <th style="background:#EFF6FF;color:#1D4ED8">@9h</th>
+            <th style="background:#F5F3FF;color:#5B21B6">@12h</th>
+            <th style="background:#ECFDF5;color:#065F46">@14h</th>
+            <th style="background:#FFFBEB;color:#92400E">@17h</th>
+            <th>AM %</th>
+            <th>PM %</th>
+            <th>Efectividad</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="cd-diag-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /.panel-body -->
+</main>
+
+
+<!-- ══ DATOS DE COMPARATIVA ═══════════════════════════════════════
+     Generado automáticamente por generar_dashboard.py.
+     La variable CD_PRECOMP se inicializa vacía y el bloque
+     inyectado la sobreescribe con datos del Excel. ═══════════════ -->
+<script>
+/* Constantes de colores y horas — deben coincidir con el template */
+const CD_COLORS   = ['#2563EB','#059669','#D97706','#DC2626','#7C3AED','#0891B2','#D946EF'];
+const CD_COLORS_A = ['#2563EB33','#05966933','#D9770633','#DC262633','#7C3AED33','#0891B233','#D946EF33'];
+const CD_HORAS    = [7,8,9,10,11,12,13,14,15,16,17,18];
+const CD_H_LBL    = CD_HORAS.map(h => h+'h');
+
+/* Valores benchmark — se sobreescriben con datos frescos si el script
+   los calcula. Sirven de fallback si el cálculo falla. */
+const CD_BENCH       = {7:0.1,8:3.7,9:11.5,10:21.5,11:30.8,12:39.9,13:45.7,14:51.3,15:60.4,16:71.1,17:82.2,18:89.3};
+const CD_BENCH_RITMO = {7:0.1,8:3.6,9:8.4,10:9.7,11:9.4,12:9.2,13:6.1,14:5.6,15:8.9,16:10.9,17:11.2,18:6.7};
+
+/* Fallback vacío — se sobreescribe por el bloque inyectado abajo */
+var CD_PRECOMP = {};
+</script>
+
+<!-- BLOQUE DE DATOS COMPARATIVA: generado por generar_dashboard.py -->
+<!--COMPARATIVA_INICIO-->
+<!-- Datos generados automáticamente por generar_dashboard.py -->
+<!--COMPARATIVA_FIN-->
+
+<!-- ══ LÓGICA DE LA COMPARATIVA DIARIA ═══════════════════════════ -->
+<script>
+/* Estado interno de la comparativa */
+let CD_DIAS    = [];
+let CD_ACTIVOS = new Set();
+let cdCA = null, cdCR = null, cdCB = null;
+
+/* Inicializa la comparativa: toma los últimos 7 días del precomp */
+function cdInit() {
+  CD_DIAS    = Object.keys(CD_PRECOMP).sort().slice(-7);
+  /* Excluye días atípicos del conjunto activo inicial */
+  CD_ACTIVOS = new Set(CD_DIAS.filter(f => !CD_PRECOMP[f].atipico));
+  cdBuildPills();
+  cdRenderAll();
+}
+
+/* Accesores y helpers */
+function cdD(f)      { return CD_PRECOMP[f] || null; }
+function cdCI(f)     { return CD_DIAS.indexOf(f) % CD_COLORS.length; }
+function cdShort(f)  {
+  const d  = new Date(f + 'T00:00:00');
+  const dn = ['dom','lun','mar','mié','jue','vie','sáb'];
+  return dn[d.getDay()] + ' ' + d.getDate().toString().padStart(2,'0') + '/' + (d.getMonth()+1).toString().padStart(2,'0');
+}
+
+/* Determina la clase CSS del estado semáforo */
+function cdSemCls(d) {
+  if (!d || d.atipico) return 'status-badge--atip';
+  if (d.parcial)       return 'status-badge--parc';
+  const p = d.acum[13] || 0;
+  return p >= 42 ? 'status-badge--ok' : p >= 32 ? 'status-badge--warn' : 'status-badge--late';
+}
+function cdSemLbl(d) {
+  if (!d || d.atipico) return 'Atípico';
+  if (d.parcial)       return '★ Parcial';
+  const p = d.acum[13] || 0;
+  return p >= 42 ? 'Estabilizado' : p >= 32 ? 'En riesgo' : 'Retrasado';
+}
+
+/* Construye las pills de días en el control bar */
+function cdBuildPills() {
+  const c = document.getElementById('cd-pills');
+  if (!c) return;
+  c.innerHTML = '';
+  CD_DIAS.forEach(f => {
+    const on = CD_ACTIVOS.has(f), ci = cdCI(f), d = cdD(f);
+    const p  = document.createElement('span');
+    p.className = 'day-pill' + (on ? ' is-active' : '');
+    p.setAttribute('role', 'checkbox');
+    p.setAttribute('aria-checked', on ? 'true' : 'false');
+    p.setAttribute('tabindex', '0');
+    if (on) { p.style.background = CD_COLORS[ci]; p.style.borderColor = CD_COLORS[ci]; }
+    p.textContent = cdShort(f) + (d && d.parcial ? ' ★' : '') + (d && d.atipico ? ' ⚠' : '');
+    p.title       = f + (d ? ` · n=${d.total}` : '');
+    const toggle  = () => {
+      if (CD_ACTIVOS.has(f)) CD_ACTIVOS.delete(f);
+      else { if (CD_ACTIVOS.size >= 7) return; CD_ACTIVOS.add(f); }
+      cdBuildPills(); cdRenderAll();
+    };
+    p.onclick  = toggle;
+    p.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } };
+    c.appendChild(p);
+  });
+}
+
+function cdToggleAll(v) {
+  if (v) CD_DIAS.forEach(f => CD_ACTIVOS.add(f)); else CD_ACTIVOS.clear();
+  cdBuildPills(); cdRenderAll();
+}
+
+/* ── RENDER: KPIs ────────────────────────────────────────────── */
+function cdRenderKPIs() {
+  const dias = [...CD_ACTIVOS].filter(f => { const d=cdD(f); return d && !d.atipico; });
+  [9,12,14,17].forEach(h => {
+    const vals = dias.map(f => cdD(f).acum[h] || 0);
+    const avg  = vals.length ? (vals.reduce((a,b)=>a+b,0) / vals.length) : 0;
+    const el   = document.getElementById('cdkv-' + h);
+    const es   = document.getElementById('cdks-' + h);
+    if (el) el.textContent = avg.toFixed(1) + '%';
+    if (es) {
+      const mn = vals.length ? Math.min(...vals).toFixed(1) : '—';
+      const mx = vals.length ? Math.max(...vals).toFixed(1) : '—';
+      es.textContent = 'min ' + mn + '% · máx ' + mx + '%';
+    }
+  });
+}
+
+/* ── RENDER: SEMÁFORO ─────────────────────────────────────────── */
+function cdRenderSemaforo() {
+  const dias  = [...CD_ACTIVOS].sort();
+  const hoy   = dias.length ? dias[dias.length-1] : null;
+  const d     = hoy ? cdD(hoy) : null;
+  const el    = document.getElementById('cd-sema-hoy');
+  const badge = document.getElementById('cd-sema-badge');
+  if (el && d) {
+    const p   = d.acum[13] || 0;
+    el.textContent = p.toFixed(1) + '%';
+    el.style.color = d.atipico ? '#9098B1' : p>=42 ? '#059669' : p>=32 ? '#D97706' : '#DC2626';
+  } else if (el) el.textContent = '—';
+  if (badge && d) badge.innerHTML = '<span class="status-badge ' + cdSemCls(d) + '">' + cdSemLbl(d) + '</span>';
+  else if (badge) badge.innerHTML = '';
+}
+
+/* Helper: construye la leyenda de una figura con los días activos */
+function cdLeg(cid) {
+  const c = document.getElementById(cid); if (!c) return; c.innerHTML = '';
+  [...CD_ACTIVOS].forEach(f => {
+    const ci = cdCI(f);
+    c.innerHTML += `<span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text2)"><span style="width:10px;height:10px;border-radius:2px;background:${CD_COLORS[ci]};flex-shrink:0"></span>${cdShort(f)}</span>`;
+  });
+}
+
+/* ── RENDER: CURVA ACUMULADA ──────────────────────────────────── */
+function cdRenderAcum() {
+  if (cdCA) { cdCA.destroy(); cdCA = null; }
+  const ctx = document.getElementById('cd-chart-acum'); if (!ctx) return;
+  cdLeg('cd-leg-acum');
+  const ds = [];
+  /* Línea benchmark */
+  ds.push({label:'Benchmark',data:CD_HORAS.map(h=>CD_BENCH[h]||0),borderColor:'#059669',borderWidth:2,borderDash:[6,4],pointRadius:0,tension:0.35,fill:false,order:0});
+  /* Banda ±5% del benchmark */
+  ds.push({label:'_bhi',data:CD_HORAS.map(h=>Math.min(100,(CD_BENCH[h]||0)+5)),borderColor:'transparent',backgroundColor:'rgba(5,150,105,0.07)',borderWidth:0,pointRadius:0,tension:0.35,fill:'+1',order:1});
+  ds.push({label:'_blo',data:CD_HORAS.map(h=>Math.max(0,(CD_BENCH[h]||0)-5)), borderColor:'transparent',backgroundColor:'rgba(5,150,105,0.07)',borderWidth:0,pointRadius:0,tension:0.35,fill:false,order:1});
+  /* Una línea por día activo */
+  [...CD_ACTIVOS].forEach(f => {
+    const d=cdD(f); if(!d) return; const ci=cdCI(f);
+    ds.push({label:cdShort(f),data:CD_HORAS.map(h=>d.acum[h]||0),borderColor:CD_COLORS[ci],backgroundColor:CD_COLORS_A[ci],borderWidth:d.parcial?2.5:1.8,borderDash:d.atipico?[4,4]:[],pointRadius:3,pointHoverRadius:6,tension:0.35,fill:false,order:2});
+  });
+  cdCA = new Chart(ctx, {
+    type:'line', data:{labels:CD_H_LBL,datasets:ds},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{mode:'index',intersect:false,filter:i=>!i.dataset.label.startsWith('_'),callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`}}
+      },
+      scales:{
+        x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:11},color:'#5A607A'}},
+        y:{min:0,max:100,grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:11},color:'#5A607A',callback:v=>v+'%'}}
+      }
+    }
+  });
+}
+
+/* ── RENDER: RITMO HORARIO ───────────────────────────────────── */
+function cdRenderRitmo() {
+  if (cdCR) { cdCR.destroy(); cdCR = null; }
+  const ctx = document.getElementById('cd-chart-ritmo'); if (!ctx) return;
+  const lc  = document.getElementById('cd-leg-ritmo');
+  if (lc) {
+    lc.innerHTML = '';
+    [...CD_ACTIVOS].forEach(f => {
+      const ci=cdCI(f);
+      lc.innerHTML += `<span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--color-text2)"><span style="width:9px;height:9px;border-radius:50%;background:${CD_COLORS[ci]};flex-shrink:0"></span>${cdShort(f)}</span>`;
+    });
+  }
+  const ds   = [];
+  const dias = [...CD_ACTIVOS].filter(f => cdD(f) && !cdD(f).atipico);
+  /* Banda max-min cuando hay más de un día */
+  if (dias.length > 1) {
+    ds.push({label:'_hi',type:'line',data:CD_HORAS.map(h=>Math.max(...dias.map(f=>cdD(f).ritmo[h]||0))),borderColor:'transparent',backgroundColor:'rgba(100,100,200,0.08)',fill:'+1',pointRadius:0,tension:0.3,borderWidth:0,order:0});
+    ds.push({label:'_lo',type:'line',data:CD_HORAS.map(h=>Math.min(...dias.map(f=>cdD(f).ritmo[h]||0))),borderColor:'transparent',backgroundColor:'rgba(100,100,200,0.08)',fill:false,pointRadius:0,tension:0.3,borderWidth:0,order:0});
+  }
+  ds.push({label:'Benchmark',type:'line',data:CD_HORAS.map(h=>CD_BENCH_RITMO[h]||0),borderColor:'#059669',borderWidth:1.5,borderDash:[5,4],pointRadius:0,tension:0.35,fill:false,order:1});
+  [...CD_ACTIVOS].forEach(f => {
+    const d=cdD(f); if(!d) return; const ci=cdCI(f);
+    ds.push({label:cdShort(f),type:'scatter',data:CD_HORAS.map((h,i)=>({x:i,y:d.ritmo[h]||0})),backgroundColor:CD_COLORS[ci],borderColor:CD_COLORS[ci],pointRadius:5,pointHoverRadius:8,order:2});
+    ds.push({label:'_l'+f,type:'line',data:CD_HORAS.map(h=>d.ritmo[h]||0),borderColor:CD_COLORS[ci]+'88',borderWidth:1,pointRadius:0,tension:0.4,fill:false,order:2});
+  });
+  cdCR = new Chart(ctx, {
+    type:'scatter', data:{labels:CD_H_LBL,datasets:ds},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{filter:i=>!i.dataset.label.startsWith('_'),callbacks:{title:its=>{const xi=its[0]?.parsed?.x;return xi!=null?CD_H_LBL[Math.round(xi)]:'';},label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`}}
+      },
+      scales:{
+        x:{type:'linear',min:-0.5,max:CD_HORAS.length-0.5,grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},color:'#5A607A',stepSize:1,callback:v=>CD_H_LBL[v]||''}},
+        y:{min:0,grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},color:'#5A607A',callback:v=>v+'%'}}
+      }
+    }
+  });
+}
+
+/* ── RENDER: BALANCE AM/PM ─────────────────────────────────── */
+function cdRenderBalance() {
+  if (cdCB) { cdCB.destroy(); cdCB = null; }
+  const ctx  = document.getElementById('cd-chart-balance'); if (!ctx) return;
+  const dias = [...CD_ACTIVOS].filter(f => cdD(f));
+  cdCB = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels:dias.map(f=>cdShort(f)),
+      datasets:[
+        {label:'AM (7–13h)',data:dias.map(f=>cdD(f).am),backgroundColor:dias.map(f=>CD_COLORS[cdCI(f)]+'BB'),borderColor:dias.map(f=>CD_COLORS[cdCI(f)]),borderWidth:1.5,borderRadius:4},
+        {label:'PM (14–18h)',data:dias.map(f=>cdD(f).pm),backgroundColor:dias.map(f=>CD_COLORS[cdCI(f)]+'44'),borderColor:dias.map(f=>CD_COLORS[cdCI(f)]),borderWidth:1,borderRadius:4}
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:true,position:'top',labels:{font:{size:10},boxWidth:10,padding:10}},
+        tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`}}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:10},color:'#5A607A',maxRotation:30}},
+        y:{min:0,max:80,grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},color:'#5A607A',callback:v=>v+'%'}}
+      }
+    }
+  });
+}
+
+/* ── RENDER: TABLA DE DIAGNÓSTICO ──────────────────────────── */
+function cdRenderDiag() {
+  const tbody = document.getElementById('cd-diag-tbody'); if (!tbody) return;
+  /* Función de formateo de porcentaje con color semáforo */
+  const pctC = v => {
+    const n   = parseFloat(v);
+    const col = n>=50 ? '#059669' : n>=35 ? '#D97706' : '#DC2626';
+    return `<span style="font-weight:600;color:${col}">${v}%</span>`;
+  };
+  tbody.innerHTML = CD_DIAS.map(f => {
+    const d=cdD(f); if(!d) return '';
+    const on=CD_ACTIVOS.has(f), ci=cdCI(f);
+    return `<tr class="${on?'':'is-dimmed'}">
+      <td style="color:${CD_COLORS[ci]};font-weight:600">${cdShort(f)}</td>
+      <td>${d.total.toLocaleString()}</td>
+      <td style="color:#059669;font-weight:600">${(d.ok||0).toLocaleString()}</td>
+      <td>${pctC((d.acum[9]||0).toFixed(1))}</td>
+      <td>${pctC((d.acum[12]||0).toFixed(1))}</td>
+      <td>${pctC((d.acum[14]||0).toFixed(1))}</td>
+      <td>${pctC((d.acum[17]||0).toFixed(1))}</td>
+      <td style="color:#2563EB">${d.am.toFixed(1)}%</td>
+      <td style="color:#F59E0B">${d.pm.toFixed(1)}%</td>
+      <td style="font-weight:600">${d.efect.toFixed(1)}%</td>
+      <td><span class="status-badge ${cdSemCls(d)}">${cdSemLbl(d)}</span></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="11" class="empty">Sin datos</td></tr>';
+}
+
+/* Renderiza todos los componentes en cadena */
+function cdRenderAll() {
+  cdRenderKPIs();
+  cdRenderSemaforo();
+  cdRenderAcum();
+  cdRenderRitmo();
+  cdRenderBalance();
+  cdRenderDiag();
+}
+
+/* ──────────────────────────────────────────────────────────────
+   INICIALIZACIÓN
+   Si CD_PRECOMP tiene datos, inicializa directamente.
+   El bloque inyectado ya convirtió las claves a enteros.
+   ────────────────────────────────────────────────────────────── */
+if (Object.keys(CD_PRECOMP).length > 0) {
+  cdInit();
+} else {
+  document.getElementById('cd-diag-tbody').innerHTML =
+    '<tr><td colspan="11" class="empty">Sin datos: ejecuta generar_dashboard.py para actualizar</td></tr>';
+}
+</script>
+
+</body>
+</html>

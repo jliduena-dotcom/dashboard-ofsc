@@ -1,0 +1,11 @@
+───────────────────────────────────────
+   INICIALIZACIÓN
+   Orden crítico: construir dropdowns → seleccionar hoy → renderizar
+   ────────────────────────────────────────────────────────────────── */
+buildDropdowns();
+autoSelectToday();
+render();
+</script>
+
+</body>
+</html>
